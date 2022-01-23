@@ -25,7 +25,6 @@ extern struct ringbuffer wifi_ringbuf;
 ************************************************/
  int main(void)
  {		
-	u16 len;	
 	 
 	delay_init();	    	 //延时函数初始化	  
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2); //设置NVIC中断分组2:2位抢占优先级，2位响应优先级
