@@ -93,8 +93,8 @@ void free_pri(void *ptr)
 	printf("free %p, headp_use_size: %d\r\n", ptr, headp_use_size);
 }
 
-static void *(*cJSON_malloc)(size_t sz) = malloc_pri;
-static void (*cJSON_free)(void *ptr) = free_pri;
+static void *(*cJSON_malloc)(size_t sz) = malloc;
+static void (*cJSON_free)(void *ptr) = free;
 
 static char* cJSON_strdup(const char* str)
 {

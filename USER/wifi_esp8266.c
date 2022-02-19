@@ -13,6 +13,19 @@ struct ringbuffer wifi_ringbuf;
 wifi_mngr_info_t wifi_mngr;
 
 
+int wifi_set_tcp_timeout(int timeout)
+{
+    char at_buf[64] = {0};
+    int ret;
+
+    memset(at_buf, 0, sizeof(at_buf));
+    sprintf(at_buf, "%s=%d\r\n", AT_SET_TCP_TIMEOUT, timeout);
+
+    ret = wifi_set_AT(at_buf, strlen(at_buf), AT_ACK_OK, 1000);
+
+    return ret;
+}
+
 int wifi_config_tcp_server(const char *ip, const int port)
 {
     char at_buf[64] = {0};
@@ -22,13 +35,16 @@ int wifi_config_tcp_server(const char *ip, const int port)
         return -1;
 
     memset(at_buf, 0, sizeof(at_buf));
-    sprintf(at_buf, "%s\"%s\"\r\n", AT_SET_AP_IP, ip);
+    sprintf(at_buf, "%s=\"%s\"\r\n", AT_SET_AP_IP, ip);
+    ret = wifi_set_AT(at_buf, strlen(at_buf), AT_ACK_OK, 1000);
 
-	ret = wifi_set_AT(AT_SET_MUT_CONNECT, strlen(AT_SET_MUT_CONNECT), AT_ACK_OK, 1000);
+	wifi_config_mut_connect(1);
 
     memset(at_buf, 0, sizeof(at_buf));
     sprintf(at_buf, "%s,%d\r\n", AT_SET_TCP_SERVER, port);
     ret = wifi_set_AT(at_buf, strlen(at_buf), AT_ACK_OK, 1000);
+
+    wifi_set_tcp_timeout(60);
 
     wifi_mngr.tcp_role = TCP_ROLE_SERVER;
 
@@ -46,7 +62,7 @@ int wifi_config_AP_mode(const char *ssid, const char *pwd)
 	ret = wifi_config_mode(WIFI_MODE_AP);
 
     memset(at_buf, 0, sizeof(at_buf));
-    sprintf(at_buf, "%s\"%s\",\"%s\",%d,%d\r\n", AT_SET_CONFIG_AP, ssid, pwd, 5, 3);
+    sprintf(at_buf, "%s=\"%s\",\"%s\",%d,%d\r\n", AT_SET_CONFIG_AP, ssid, pwd, 5, 3);
 
     ret = wifi_set_AT(at_buf, strlen(at_buf), AT_ACK_OK, 1000);
 
@@ -59,9 +75,57 @@ int wifi_config_mode(wifi_mode_e mode)
     int ret;
     
     memset(at_buf, 0, sizeof(at_buf));
-    sprintf(at_buf, "%s%d\r\n", AT_SET_MODE, mode);
+    sprintf(at_buf, "%s=%d\r\n", AT_SET_MODE, mode);
 
     ret = wifi_set_AT(at_buf, strlen(at_buf), AT_ACK_OK, 1000);
+
+    return ret;
+}
+
+int wifi_config_mut_connect(int mut_flag)
+{
+    char at_buf[64] = {0};
+    int ret;
+    
+    memset(at_buf, 0, sizeof(at_buf));
+    sprintf(at_buf, "%s=%d\r\n", AT_SET_MUT_CONNECT, mut_flag);
+
+    ret = wifi_set_AT(at_buf, strlen(at_buf), AT_ACK_OK, 1000);
+
+    return ret;
+}
+
+int wifi_connect_AP(const char *ssid, const char *pwd)
+{
+    char at_buf[64] = {0};
+    int ret;
+    
+    ret = wifi_config_mut_connect(0);
+
+    ret = wifi_config_mode(WIFI_MODE_STA_AP);
+
+    memset(at_buf, 0, sizeof(at_buf));
+    sprintf(at_buf, "%s=\"%s\",\"%s\"\r\n", AT_CONNCET_AP, ssid, pwd);
+
+    delay_ms(100);
+    printf("connect AP ...\r\n");
+    ret = wifi_set_AT(at_buf, strlen(at_buf), AT_ACK_OK, 10*1000);
+
+    return ret;
+}
+
+int wifi_connect_server(const char *ip, int port)
+{
+    char at_buf[64] = {0};
+    int ret;
+    
+    memset(at_buf, 0, sizeof(at_buf));
+    sprintf(at_buf, "%s,\"%s\",%d\r\n", AT_TCP_CONNECT_SVR, ip, port);
+
+    printf("connect TCP server ...\r\n");
+    ret = wifi_set_AT(at_buf, strlen(at_buf), AT_ACK_OK, 10*1000);
+
+    wifi_mngr.tcp_role = TCP_ROLE_CLIENT;
 
     return ret;
 }
@@ -73,12 +137,17 @@ int wifi_send_data(char *buf, int len)
     memset(at_buf, 0, sizeof(at_buf));
     if(wifi_mngr.tcp_role == TCP_ROLE_SERVER)
     {
-        sprintf(at_buf, "%s%d,%d\r\n", AT_SET_TCP_SEND, 0, len);
+        sprintf(at_buf, "%s=%d,%d\r\n", AT_SET_TCP_SEND, 0, len);
+    }
+    else
+    {
+        sprintf(at_buf, "%s=%d\r\n", AT_SET_TCP_SEND, len);
     }
 
     // send AT cmd
     wifi_set_AT(at_buf, strlen(at_buf), NULL, 0);
     delay_ms(10);
+
     // send data
     uart3_send(buf, len);
 	printf("%s[%d]: %s\r\n", __FUNCTION__, len, buf);
@@ -145,7 +214,6 @@ void wifi_reset(void)
 {
     printf("wifi reset ...\r\n");
     wifi_set_AT(AT_RESET, strlen(AT_RESET), AT_ACK_RST, 2*1000);
-    //delay_ms(3*1000);
 }
 
 int wifi_init(void)
@@ -156,7 +224,7 @@ int wifi_init(void)
 	usart3_init(115200);
 
     wifi_reset();
-	//wifi_set_AT(AT_RESET, strlen(AT_RESET), NULL, 0);
+
 	wifi_set_AT(AT_ECHO_OFF, strlen(AT_ECHO_OFF), AT_ACK_OK, 1000);
 	wifi_set_AT(AT_TEST, strlen(AT_TEST), AT_ACK_OK, 1000);
 

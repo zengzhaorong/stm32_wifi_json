@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "wifi_esp8266.h"
 #include "protocol.h"
 #include "cJSON.h"
@@ -9,106 +10,21 @@ unsigned char proto_buf[PROTO_PACKET_MAX_LEN] = {0};
 proto_detect_t proto_detect;
 
 
-int proto_send_dev_state(void)
-{
-    cJSON *json_root, *json_data;
-    char *json_str;
-
-    json_root = cJSON_CreateObject();
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_MAGIC, PROTO_MAGIC_CODE);
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_RESULT, PROTO_RESULT_TRUE);
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_TYPE, PROTO_TYPE_QUERY);
-    cJSON_AddItemToObject(json_root, PROTO_ITEM_DATA, json_data=cJSON_CreateObject());
-    cJSON_AddStringToObject(json_data, PROTO_DEV_LED, PROTO_CMD_STATE_OFF);
-    cJSON_AddStringToObject(json_data, PROTO_DEV_DOOR, PROTO_CMD_STATE_OFF);
-    cJSON_AddStringToObject(json_data, PROTO_DEV_WINDOW, PROTO_CMD_STATE_OFF);
-    cJSON_AddStringToObject(json_data, PROTO_DEV_HUMIDIFIER, PROTO_CMD_STATE_OFF);
-    json_str = cJSON_Print(json_root);
-    printf("JSON:\r\n%s\r\n", json_str);
-
-    wifi_send_data(json_str, strlen(json_str));
-
-    //free(json_str);
-    free_pri(json_str);
-    cJSON_Delete(json_root);
-
-    return 0;
-}
-
-int proto_send_temp_humi(double temp, int humi)
-{
-    cJSON *json_root, *json_data;
-    char *json_str;
-    char humi_str[8] = {0};
-
-    sprintf(humi_str, "%d%c", humi, '%');
-
-    json_root = cJSON_CreateObject();
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_MAGIC, PROTO_MAGIC_CODE);
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_RESULT, PROTO_RESULT_TRUE);
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_TYPE, PROTO_TYPE_STATUS);
-    cJSON_AddItemToObject(json_root, PROTO_ITEM_DATA, json_data=cJSON_CreateObject());
-    cJSON_AddNumberToObject(json_data, PROTO_STATUS_TEMP, temp);
-    cJSON_AddStringToObject(json_data, PROTO_STATUS_HUMI, humi_str);
-    json_str = cJSON_Print(json_root);
-    printf("JSON:\r\n%s\r\n", json_str);
-
-    wifi_send_data(json_str, strlen(json_str));
-
-    //free(json_str);
-    free_pri(json_str);
-    cJSON_Delete(json_root);
-
-    return 0;
-}
-
-int proto_send_smoke_status(char *status)
-{
-    cJSON *json_root;
-    char *json_str;
-
-    json_root = cJSON_CreateObject();
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_MAGIC, PROTO_MAGIC_CODE);
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_RESULT, PROTO_RESULT_TRUE);
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_TYPE, PROTO_TYPE_STATUS);
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_DATA, status);
-
-    json_str = cJSON_Print(json_root);
-    printf("JSON:\r\n%s\r\n", json_str);
-
-    wifi_send_data(json_str, strlen(json_str));
-
-    //free(json_str);
-    free_pri(json_str);
-    cJSON_Delete(json_root);
-
-    return 0;
-}
-
-// ·¢ËÍÏìÓ¦Ð­Òé£¬Ö»·µ»Ø½á¹ûµÄ
+// å‘é€å“åº”åè®®ï¼Œåªè¿”å›žç»“æžœçš„
 int proto_send_ack_result(char *type, char *result)
 {
-    cJSON *json_root;
-    char *json_str;
+    char proto_buf[64] = {0};
 
-    json_root = cJSON_CreateObject();
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_MAGIC, PROTO_MAGIC_CODE);
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_RESULT, result);
-    cJSON_AddStringToObject(json_root, PROTO_ITEM_TYPE, type);
+    sprintf(proto_buf, "{\"%s\":\"%s\",\"%s\":\"%s\",\"%s\":\"%s\"}", 
+            PROTO_ITEM_MAGIC, PROTO_MAGIC_CODE, 
+            PROTO_ITEM_RESULT, result, PROTO_ITEM_TYPE, type);
 
-    json_str = cJSON_Print(json_root);
-    printf("JSON:\r\n%s\r\n", json_str);
-
-    wifi_send_data(json_str, strlen(json_str));
-
-    //free(json_str);
-    free_pri(json_str);
-    cJSON_Delete(json_root);
+    wifi_send_data(proto_buf, strlen(proto_buf));
 
     return 0;
 }
 
-// ´¦ÀíÊÕµ½µÄ¿ØÖÆÃüÁî
+// å¤„ç†æ”¶åˆ°çš„æŽ§åˆ¶å‘½ä»¤
 int proto_cmd_dispatch(cJSON *json_data)
 {
     cJSON *json_item;
@@ -130,29 +46,12 @@ int proto_cmd_dispatch(cJSON *json_data)
     return 0;
 }
 
-// ÌáÈ¡Òª»ñÈ¡µÄ×´Ì¬
-int proto_status_get_data(cJSON *json_data, unsigned int *status_addr)
-{
-
-    if(!strcmp(json_data->valuestring, PROTO_STATUS_TEMP_HUMI))
-    {
-        *status_addr = (unsigned int)(&PROTO_STATUS_TEMP_HUMI);
-    }
-    else if(!strcmp(json_data->valuestring, PROTO_STATUS_SMOKE))
-    {
-        *status_addr = (unsigned int)(&PROTO_STATUS_SMOKE);
-    }
-
-    return 0;
-}
-
 int proto_packet_analy(unsigned char *data, int len)
 {
     cJSON *root, *json_magic, *json_type, *json_data;
-    unsigned int status_addr;
     int ret;
 
-    // ½âÎö³öjson¶ÔÏó
+    // è§£æžå‡ºjsonå¯¹è±¡
     root = cJSON_Parse((const char *)data);
     if(!root)
     {
@@ -160,62 +59,52 @@ int proto_packet_analy(unsigned char *data, int len)
         return -1;
     }
 
-    // ½âÎömagicÖµ²¢Ð£Ñé
+    // è§£æžmagicå€¼å¹¶æ ¡éªŒ
     json_magic = cJSON_GetObjectItem(root, PROTO_ITEM_MAGIC);
     printf("get [%s]: %s\r\n", json_magic->string, json_magic->valuestring);
     if(strcmp(json_magic->valuestring, PROTO_MAGIC_CODE))
         return -1;
 
-    // ½âÎötypeÖµ
+    // è§£æžtypeå€¼
     json_type = cJSON_GetObjectItem(root, PROTO_ITEM_TYPE);
     printf("get [%s]: %s\r\n", json_type->string, json_type->valuestring);
 
-    // »ñÈ¡dataÖµ
+    // èŽ·å–dataå€¼
     json_data = cJSON_GetObjectItem(root, PROTO_ITEM_DATA);
 
-    // ¸ù¾ÝÏûÏ¢ÀàÐÍ·Ö·¢µ½¸÷¸ö´¦Àíº¯Êý
-    // ¿ØÖÆÃüÁî
+    // æ ¹æ®æ¶ˆæ¯ç±»åž‹åˆ†å‘åˆ°å„ä¸ªå¤„ç†å‡½æ•°
+    // æŽ§åˆ¶å‘½ä»¤
     if(!strcmp(json_type->valuestring, PROTO_TYPE_CMD))
     {
         ret = proto_cmd_dispatch(json_data);
-        //ÏÈÊÍ·Å£¬±ÜÃâheapÄÚ´æÏûºÄ¹ý´ó
+        //å…ˆé‡Šæ”¾ï¼Œé¿å…heapå†…å­˜æ¶ˆè€—è¿‡å¤§
         cJSON_Delete(root);
         if(ret == 0)
             proto_send_ack_result(PROTO_TYPE_CMD, PROTO_RESULT_TRUE);
         else
             proto_send_ack_result(PROTO_TYPE_CMD, PROTO_RESULT_FALSE);
     }
-    // »ñÈ¡×´Ì¬
+    // èŽ·å–çŠ¶æ€
     else if(!strcmp(json_type->valuestring, PROTO_TYPE_STATUS))
     {
-        ret = proto_status_get_data(json_data, &status_addr);
-        //ÏÈÊÍ·Å£¬±ÜÃâheapÄÚ´æÏûºÄ¹ý´ó
+        //å…ˆé‡Šæ”¾ï¼Œé¿å…heapå†…å­˜æ¶ˆè€—è¿‡å¤§
         cJSON_Delete(root);
-        if(status_addr == (unsigned int)&PROTO_STATUS_TEMP_HUMI)
-        {
-            proto_send_temp_humi(36.3, 80);
-        }
-        else if(status_addr == (unsigned int)&PROTO_STATUS_SMOKE)
-        {
-            proto_send_smoke_status(PROTO_STATUS_NORMAL);
-        }
     }
-    // ¶Ô»°ÏûÏ¢
+    // å¯¹è¯æ¶ˆæ¯
     else if(!strcmp(json_type->valuestring, PROTO_TYPE_MSG))
     {
-        //ÏÈÊÍ·Å£¬±ÜÃâheapÄÚ´æÏûºÄ¹ý´ó
+        //å…ˆé‡Šæ”¾ï¼Œé¿å…heapå†…å­˜æ¶ˆè€—è¿‡å¤§
         cJSON_Delete(root);
         if(ret == 0)
             proto_send_ack_result(PROTO_TYPE_MSG, PROTO_RESULT_TRUE);
         else
             proto_send_ack_result(PROTO_TYPE_MSG, PROTO_RESULT_FALSE);
     }
-    // ²éÑ¯Éè±¸×´Ì¬
+    // æŸ¥è¯¢è®¾å¤‡çŠ¶æ€
     else if(!strcmp(json_type->valuestring, PROTO_TYPE_QUERY))
     {
-        //ÏÈÊÍ·Å£¬±ÜÃâheapÄÚ´æÏûºÄ¹ý´ó
+        //å…ˆé‡Šæ”¾ï¼Œé¿å…heapå†…å­˜æ¶ˆè€—è¿‡å¤§
         cJSON_Delete(root);
-        proto_send_dev_state();
     }
     else
     {
@@ -245,6 +134,14 @@ int proto_packet_detect(proto_detect_t *dectect_info, struct ringbuffer *ringbuf
         {
             dectect_info->data[dectect_info->data_len] = c;
             dectect_info->data_len ++;
+            if(dectect_info->data_len >= PROTO_PACKET_MAX_LEN)
+            {
+                proto_detect.data_len = 0;
+                proto_detect.detect_flag = 0;
+                proto_detect.head_num = 0;
+                memset(proto_detect.data, 0, PROTO_PACKET_MAX_LEN);
+                return 0;
+            }
         }
         printf("%c", c);
         if(c == '{')

@@ -27,16 +27,6 @@
 
 #define PROTO_DEV_LED           "led"
 #define PROTO_DEV_DOOR          "door"
-#define PROTO_DEV_WINDOW        "window"
-#define PROTO_DEV_HUMIDIFIER    "humidifier"
-
-#define PROTO_STATUS_NORMAL      "正常"
-#define PROTO_STATUS_ABNORMAL    "异常"
-
-#define PROTO_STATUS_TEMP_HUMI      "temp-humi"
-#define PROTO_STATUS_SMOKE          "smoke"
-#define PROTO_STATUS_TEMP          "temperate"
-#define PROTO_STATUS_HUMI          "humidity"
 
 
 typedef struct 
@@ -47,11 +37,6 @@ typedef struct
     int data_len;   //数据长度
 }proto_detect_t;
 
-
-int proto_send_dev_state(void);
-
-int proto_send_temp_humi(double temp, int humi);
-int proto_send_smoke_status(char *status);
 
 int proto_send_ack_result(char *type, char *result);
 
